@@ -20,62 +20,59 @@ class Matrix:
         return result
     
     def __mul__(self, other):
-        result = Matrix(self.rows, self.cols)
         if isinstance(other, (int, float)):  # Scalar multiplication
+            result = Matrix(self.rows, self.cols)
             result.data = self.data * other
             return result
         if self.cols != other.rows:
             raise ValueError("Matrices must have compatible dimensions to multiply")
         result = Matrix(self.rows, other.cols)
-        result.data = np.matmul(self.data, other.data)
+        result.data = np.dot(self.data, other.data)
         return result
 
     @staticmethod
     def determinant(matrix):
         if matrix.rows != matrix.cols:
             raise ValueError("Matrix must be square to calculate determinant")
-        return np.linalg.det(matrix.data)
+        
+        if matrix.rows == 1:
+            return matrix.data[0, 0]
+        elif matrix.rows == 2:
+            return matrix.data[0, 0] * matrix.data[1, 1] - matrix.data[0, 1] * matrix.data[1, 0]
+        else:
+            det = 0
+            for i in range(matrix.cols):
+                minor = Matrix(matrix.rows - 1, matrix.cols - 1)
+                minor.data = np.delete(np.delete(matrix.data, 0, axis=0), i, axis=1)
+                det += ((-1) ** i) * matrix.data[0, i] * Matrix.determinant(minor)
+            return det
 
     @staticmethod
     def inverse(matrix):
         if matrix.rows != matrix.cols:
             raise ValueError("Matrix must be square to calculate inverse")
+        
         det = Matrix.determinant(matrix)
         if np.isclose(det, 0):
             raise ValueError("Matrix is singular and cannot be inverted")
         
-        result = Matrix(matrix.rows, matrix.cols)
-        result.data = np.linalg.inv(matrix.data)
-        return result
+        cofactors = Matrix(matrix.rows, matrix.cols)
+        for i in range(matrix.rows):
+            for j in range(matrix.cols):
+                minor = Matrix(matrix.rows - 1, matrix.cols - 1)
+                minor.data = np.delete(np.delete(matrix.data, i, axis=0), j, axis=1)
+                cofactors.data[i, j] = ((-1) ** (i + j)) * Matrix.determinant(minor)
+        
+        adjugate = cofactors.transpose()
+        inverse = Matrix(matrix.rows, matrix.cols)
+        inverse.data = adjugate.data / det
+        return inverse
 
     def transpose(self):
         result = Matrix(self.cols, self.rows)
         result.data = np.transpose(self.data)
         return result
 
-    @staticmethod
-    def matminors(matrix):
-        if matrix.rows != matrix.cols:
-            raise ValueError("Matrix must be square to calculate minors")
-        
-        n = matrix.rows
-        minors = Matrix(n, n)
-        for i in range(n):
-            for j in range(n):
-                # Create a matrix with row i and column j removed
-                minor = np.delete(np.delete(matrix.data, i, axis=0), j, axis=1)
-                minors.data[i, j] = np.linalg.det(minor)
-        return minors
-
-    @staticmethod
-    def matcofactors(matrix):
-        cofactors = Matrix(matrix.rows, matrix.cols)
-        cofactors.data = matrix.data.copy()
-        for i in range(matrix.rows):
-            for j in range(matrix.cols):
-                cofactors.data[i, j] *= (-1) ** (i + j)
-        return cofactors
-    
     @staticmethod
     def row_echelon(matrix, inplace=False):
         if not inplace:
@@ -96,12 +93,12 @@ class Matrix:
                 continue  # No pivot found in this column
 
             # Swap pivot row with current row
-            result = Matrix.row_switch(result, pivot_row, r, inplace)
+            result.data[[r, pivot_row], :] = result.data[[pivot_row, r], :]
 
             # Normalize pivot row
             pivot_value = result.data[r, i]
             if pivot_value != 0:
-                result = Matrix.row_multiplication(result, r, 1 / pivot_value, inplace)
+                result.data[r, :] /= pivot_value
 
             # Eliminate entries below pivot
             for j in range(r + 1, result.rows):
@@ -111,6 +108,37 @@ class Matrix:
             r += 1  # Move to the next row
             if r >= result.rows:
                 break
+
+        return result
+    
+    @staticmethod
+    def reduced_row_echelon(matrix, inplace=False):
+        if not inplace:
+            result = Matrix(matrix.rows, matrix.cols, matrix.data.copy())
+        else:
+            result = matrix
+
+        # Perform forward elimination to get REF
+        result = Matrix.row_echelon(result, inplace=True)
+
+        # Iterate through the rows in reverse order for back-substitution
+        for i in range(result.rows - 1, -1, -1):
+            row = result.data[i]
+            
+            # Find the pivot column (first nonzero entry in the row)
+            pivot_col = next((j for j in range(result.cols) if row[j] != 0), None)
+            if pivot_col is None:
+                continue  # Skip all-zero rows
+            
+            # Normalize the pivot to 1
+            pivot_value = row[pivot_col]
+            if pivot_value != 0:  # Avoid division by zero
+                row /= pivot_value
+
+            # Eliminate entries above the pivot
+            for k in range(i):  # Iterate over rows above the current row
+                factor = result.data[k, pivot_col]
+                result.data[k] -= factor * row
 
         return result
     
@@ -159,6 +187,7 @@ print("Determinant of Matrix1:", Matrix.determinant(Matrix1))
 print("Determinant of Matrix2:", Matrix.determinant(Matrix2))
 print("Determinant of Matrix4:", Matrix.determinant(Matrix4))
 print("Determinant of Matrix5:", Matrix.determinant(Matrix5))
+
 try:
     print("Inverse of Matrix4:")
     inverse_matrix4 = Matrix.inverse(Matrix4)
