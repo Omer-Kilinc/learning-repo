@@ -174,7 +174,16 @@ class Matrix:
             result.data = matrix.data.copy()
             result.data[i, :] += matrix.data[j, :]
             return result
-
+    
+    @staticmethod
+    def Moore_penrose(matrix, inplace=False):
+        if inplace:
+            matrix.data = Matrix.inverse(matrix.data * Matrix.transpose(matrix.data))
+            return matrix
+        else:
+            result = Matrix(matrix.rows, matrix.cols)
+            result.data = Matrix.inverse(matrix.data * Matrix.transpose(matrix.data))
+            return result
 
 # Test code
 Matrix1 = Matrix(2, 2, [[1, 2], [3, 4]])
