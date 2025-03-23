@@ -10,3 +10,7 @@
 
 *.log
 .aider*
+
+__pycache__/
+*.py[cod]
+*$py.class
